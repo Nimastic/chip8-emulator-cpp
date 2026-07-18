@@ -1,0 +1,73 @@
+<h2 class="sr-only">Interactive CHIP-8 display buffer showing how an 8-pixel-wide sprite is XORed onto the framebuffer, including the collision flag and screen wrapping.</h2>
+<div style="padding:1rem 0">
+  <div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:16px">
+    <div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Sprite in RAM at I (the "0" font glyph)</div>
+      <div id="sprite" style="font-family:var(--font-mono);font-size:12px;line-height:1.5"></div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Registers</div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;background:var(--surface-1);border-radius:8px;padding:8px 10px">
+          <div style="font-size:12px;color:var(--text-muted)">VF (collision)</div>
+          <div id="vf" style="font-size:18px;font-weight:500;font-family:var(--font-mono)">0</div>
+        </div>
+        <div style="flex:1;background:var(--surface-1);border-radius:8px;padding:8px 10px">
+          <div style="font-size:12px;color:var(--text-muted)">Pixels lit</div>
+          <div id="lit" style="font-size:18px;font-weight:500;font-family:var(--font-mono)">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Display buffer (24&times;12 &mdash; scaled down from 64&times;32)</div>
+  <div id="grid" style="display:grid;grid-template-columns:repeat(24,18px);gap:1px;background:var(--border);padding:1px;border-radius:4px;width:max-content"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--text-secondary)">
+    <span style="min-width:12px">X</span>
+    <input type="range" id="sx" min="0" max="23" step="1" value="3" style="flex:1">
+    <span id="sxo" style="min-width:20px;text-align:right;font-family:var(--font-mono)">3</span>
+    <span style="min-width:12px;margin-left:8px">Y</span>
+    <input type="range" id="sy" min="0" max="11" step="1" value="3" style="flex:1">
+    <span id="syo" style="min-width:20px;text-align:right;font-family:var(--font-mono)">3</span>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:12px">
+    <button id="draw">Draw sprite here</button>
+    <button id="cls">CLS</button>
+  </div>
+</div>
+<script>
+const W=24,H=12,SP=[0xF0,0x90,0x90,0x90,0xF0];
+let vid=new Array(W*H).fill(0),vf=0;
+const g=document.getElementById("grid");
+for(let i=0;i<W*H;i++){const d=document.createElement("div");d.style.cssText="width:18px;height:18px";g.appendChild(d);}
+function sprite(){
+ document.getElementById("sprite").innerHTML=SP.map(b=>{
+  const bits=b.toString(2).padStart(8,"0").split("").map(c=>
+   '<span style="display:inline-block;width:12px;height:12px;margin-right:1px;border-radius:2px;background:'+(c==="1"?"var(--text-primary)":"var(--surface-1)")+'"></span>').join("");
+  return '<div style="margin-bottom:2px">'+bits+' <span style="color:var(--text-muted);margin-left:6px">0x'+b.toString(16).toUpperCase().padStart(2,"0")+'</span></div>';
+ }).join("");
+}
+function render(){
+ const c=g.children;
+ for(let i=0;i<W*H;i++) c[i].style.background = vid[i]?"var(--text-primary)":"var(--surface-2)";
+ document.getElementById("vf").textContent=vf;
+ document.getElementById("lit").textContent=vid.reduce((a,b)=>a+b,0);
+}
+document.getElementById("draw").onclick=()=>{
+ const x=+document.getElementById("sx").value, y=+document.getElementById("sy").value;
+ vf=0;
+ for(let r=0;r<SP.length;r++){
+  for(let b=0;b<8;b++){
+   if((SP[r]>>(7-b))&1){
+    const idx=((y+r)%H)*W+((x+b)%W);
+    if(vid[idx]) vf=1;
+    vid[idx]^=1;
+   }
+  }
+ }
+ render();
+};
+document.getElementById("cls").onclick=()=>{vid.fill(0);vf=0;render();};
+document.getElementById("sx").oninput=e=>document.getElementById("sxo").textContent=e.target.value;
+document.getElementById("sy").oninput=e=>document.getElementById("syo").textContent=e.target.value;
+sprite();render();
+</script>

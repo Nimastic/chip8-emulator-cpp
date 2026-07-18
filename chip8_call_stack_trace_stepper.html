@@ -1,0 +1,65 @@
+<h2 class="sr-only">Step-by-step trace of a CHIP-8 program showing the program counter, stack pointer, and stack array through eight CALL, RET, JMP and LD instructions.</h2>
+<div style="display:flex;gap:20px;align-items:flex-start;padding:1rem 0">
+  <div style="flex:0 0 230px">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Program</div>
+    <div id="prog" style="font-family:var(--font-mono);font-size:13px;line-height:1.9"></div>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;gap:12px;margin-bottom:12px">
+      <div style="flex:1;background:var(--surface-1);border-radius:8px;padding:10px 12px">
+        <div style="font-size:12px;color:var(--text-muted)">PC</div>
+        <div id="pc" style="font-size:20px;font-weight:500;font-family:var(--font-mono)">$200</div>
+      </div>
+      <div style="flex:1;background:var(--surface-1);border-radius:8px;padding:10px 12px">
+        <div style="font-size:12px;color:var(--text-muted)">SP</div>
+        <div id="sp" style="font-size:20px;font-weight:500;font-family:var(--font-mono)">0</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Stack (slots 0&ndash;3 of 16)</div>
+    <div id="stack" style="font-family:var(--font-mono);font-size:13px"></div>
+  </div>
+</div>
+<div id="action" style="font-size:14px;color:var(--text-secondary);line-height:1.6;min-height:44px;padding:12px;background:var(--surface-1);border-radius:8px"></div>
+<div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+  <button id="prev">Prev</button>
+  <button id="next">Next</button>
+  <span id="pos" style="font-size:13px;color:var(--text-muted)"></span>
+</div>
+<script>
+const prog=[["$200","CALL $208"],["$202","JMP  $20E"],["$204","LD V1, $1"],["$206","RET"],["$208","LD V3, $3"],["$20A","CALL $204"],["$20C","RET"],["$20E","LD V4, $4"]];
+const S=[
+ {at:null,pc:"$200",sp:0,st:[null,null,null,null],a:"Start. PC points at $200, SP is 0, stack is empty."},
+ {at:"$200",pc:"$208",sp:1,st:["$202",null,null,null],a:"Fetch CALL $208 &rarr; PC += 2 makes PC = $202 &rarr; CALL pushes that $202 into stack[0], SP goes 0&rarr;1 &rarr; PC = $208. The pushed value is the return address precisely because the increment already happened."},
+ {at:"$208",pc:"$20A",sp:1,st:["$202",null,null,null],a:"Fetch LD V3, $3 &rarr; PC += 2 makes PC = $20A &rarr; loads 3 into V3. Stack and SP untouched."},
+ {at:"$20A",pc:"$204",sp:2,st:["$202","$20C",null,null],a:"Fetch CALL $204 &rarr; PC += 2 makes PC = $20C &rarr; pushes $20C into stack[1], SP goes 1&rarr;2 &rarr; PC = $204. Nested call: two return addresses now saved."},
+ {at:"$204",pc:"$206",sp:2,st:["$202","$20C",null,null],a:"Fetch LD V1, $1 &rarr; PC += 2 makes PC = $206 &rarr; loads 1 into V1. Stack untouched."},
+ {at:"$206",pc:"$20C",sp:1,st:["$202","$20C",null,null],a:"Fetch RET &rarr; PC += 2 makes PC = $208, but that gets thrown away &rarr; SP goes 2&rarr;1, read stack[1] = $20C &rarr; PC = $20C. Note $20C is still sitting in the array &mdash; popping only moves SP."},
+ {at:"$20C",pc:"$202",sp:0,st:["$202","$20C",null,null],a:"Fetch RET &rarr; PC += 2 makes PC = $20E, discarded &rarr; SP goes 1&rarr;0, read stack[0] = $202 &rarr; PC = $202. Stack is now logically empty, but both stale values remain in the array."},
+ {at:"$202",pc:"$20E",sp:0,st:["$202","$20C",null,null],a:"Fetch JMP $20E &rarr; PC += 2 makes PC = $204, discarded &rarr; PC = $20E. No push. A JMP is a one-way trip &mdash; nothing to RET back to."},
+ {at:"$20E",pc:"$210",sp:0,st:["$202","$20C",null,null],a:"Fetch LD V4, $4 &rarr; PC += 2 makes PC = $210 &rarr; loads 4 into V4. Program continues at $210."}
+];
+let i=0;
+function render(){
+ const s=S[i];
+ document.getElementById("prog").innerHTML=prog.map(([a,t])=>{
+  const on=a===s.at;
+  return '<div style="padding:2px 8px;border-radius:4px;'+(on?'background:var(--bg-accent);color:var(--text-accent);font-weight:500':'color:var(--text-secondary)')+'">'+a+': '+t.replace(/ /g,"&nbsp;")+'</div>';
+ }).join("");
+ document.getElementById("pc").textContent=s.pc;
+ document.getElementById("sp").textContent=s.sp;
+ document.getElementById("stack").innerHTML=[0,1,2,3].map(n=>{
+  const v=s.st[n], live=n<s.sp, ptr=n===s.sp;
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+   +'<div style="flex:1;display:flex;justify-content:space-between;padding:6px 10px;border-radius:4px;border:0.5px solid '+(live?'var(--border-accent)':'var(--border)')+';background:'+(live?'var(--bg-accent)':'var(--surface-2)')+';color:'+(live?'var(--text-accent)':'var(--text-muted)')+'">'
+   +'<span>'+String(n).padStart(2,"0")+'</span><span>'+(v?'0x'+v.slice(1):'0x000')+'</span></div>'
+   +'<div style="width:60px;font-size:12px;color:var(--text-secondary)">'+(ptr?'&larr; SP':'')+'</div></div>';
+ }).join("");
+ document.getElementById("action").innerHTML=s.a;
+ document.getElementById("pos").textContent=(i===0?"Initial state":"Step "+i+" of 8");
+ document.getElementById("prev").disabled=i===0;
+ document.getElementById("next").disabled=i===S.length-1;
+}
+document.getElementById("prev").onclick=()=>{if(i>0){i--;render();}};
+document.getElementById("next").onclick=()=>{if(i<S.length-1){i++;render();}};
+render();
+</script>
